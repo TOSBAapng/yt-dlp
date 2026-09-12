@@ -30,15 +30,14 @@ class handler(BaseHTTPRequestHandler):
         cookie_file_path = None
 
         ydl_opts = {
-            # 'format': 'all' sayesinde yt-dlp "Requested format is not available" hatası fırlatmaz
             'format': 'all',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # Embed engeline ve PoToken kısıtlamasına takılmayan istemciler
+            # Gerçek video akışı döndüren TV ve Creator istemcileri
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android_vr', 'mweb'],
+                    'player_client': ['tv', 'android_creator', 'mweb'],
                     'player_skip': ['configs', 'webpage']
                 }
             }
@@ -59,34 +58,45 @@ class handler(BaseHTTPRequestHandler):
                 stream_url = None
                 formats = info.get('formats', [])
                 
-                # 1. Ses ve Video barındıran doğrudan akış (MP4 / HLS)
-                for f in formats:
-                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
-                        stream_url = f.get('url')
-                        break
+                # Storyboard/Resim linklerini filtreleyen yardımcı fonksiyon
+                def is_real_media(f_url, ext):
+                    if not f_url:
+                        return False
+                    f_url_str = str(f_url).lower()
+                    ext_str = str(ext).lower()
+                    if 'storyboard' in f_url_str or 'i.ytimg.com' in f_url_str:
+                        return False
+                    if ext_str in ['mhtml', 'jpg', 'png', 'webp']:
+                        return False
+                    return True
 
-                # 2. Bulunamazsa geçerli video akışı (mhtml/storyboard hariç)
+                # 1. Öncelik: Hem Ses hem Video barındıran gerçek medya akışı
+                for f in formats:
+                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
+                        if is_real_media(f.get('url'), f.get('ext')):
+                            stream_url = f.get('url')
+                            break
+
+                # 2. Öncelik: Sadece Video barındıran medya akışı
                 if not stream_url:
                     for f in formats:
-                        if f.get('vcodec') != 'none' and f.get('url') and not str(f.get('ext')).startswith('mhtml'):
-                            stream_url = f.get('url')
-                            break
+                        if f.get('vcodec') != 'none':
+                            if is_real_media(f.get('url'), f.get('ext')):
+                                stream_url = f.get('url')
+                                break
 
-                # 3. Son çare: Herhangi bir geçerli medya bağlantısı
+                # 3. Öncelik: Resim olmayan herhangi bir video/ses linki (.mp4 / .m3u8 vb.)
                 if not stream_url:
                     for f in reversed(formats):
-                        if f.get('url') and not str(f.get('ext')).startswith('mhtml'):
+                        if is_real_media(f.get('url'), f.get('ext')):
                             stream_url = f.get('url')
                             break
-
-                if not stream_url:
-                    stream_url = info.get('url')
 
                 response = {
                     'status': 'success' if stream_url else 'error',
                     'title': info.get('title'),
                     'duration': info.get('duration'),
-                    'url': stream_url if stream_url else None,
+                    'url': stream_url,
                     'thumbnail': info.get('thumbnail')
                 }
         except Exception as e:
