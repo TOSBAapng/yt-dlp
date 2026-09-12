@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hızlı MP4 İndirici</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #0f172a; color: #fff; }
+        .box { background: #1e293b; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 90%; max-width: 400px; text-align: center; }
+        input { width: 100%; padding: 12px; margin-bottom: 1rem; border: 1px solid #334155; border-radius: 8px; background: #0f172a; color: #fff; box-sizing: border-box; outline: none; }
+        button { width: 100%; padding: 12px; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        .result { margin-top: 1.5rem; display: none; }
+        a.download-btn { display: inline-block; width: 100%; padding: 12px; background: #10b981; color: white; border-radius: 8px; text-decoration: none; font-weight: bold; box-sizing: border-box; }
+        a.download-btn:hover { background: #059669; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>YouTube MP4 İndir</h2>
+    <input type="text" id="ytUrl" placeholder="YouTube Linkini Yapıştırın...">
+    <button id="btn" onclick="getLink()">Bağlantıyı Al</button>
+
+    <div id="result" class="result">
+        <p id="title" style="font-size: 14px; margin-bottom: 12px; opacity: 0.9;"></p>
+        <a id="downloadLink" class="download-btn" href="#" target="_blank" download>Videoyu İndir (MP4)</a>
+    </div>
+</div>
+
+<script>
+    async function getLink() {
+        const url = document.getElementById('ytUrl').value.trim();
+        const btn = document.getElementById('btn');
+        const resultDiv = document.getElementById('result');
+        const downloadLink = document.getElementById('downloadLink');
+        const titleText = document.getElementById('title');
+
+        if (!url) return alert('Lütfen bir YouTube linki girin!');
+
+        btn.disabled = true;
+        btn.innerText = 'Hazırlanıyor...';
+        resultDiv.style.display = 'none';
+
+        try {
+            const res = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+
+            if (data.success) {
+                titleText.innerText = data.title;
+                downloadLink.href = data.download_url;
+                resultDiv.style.display = 'block';
+            } else {
+                alert(data.error || 'Link oluşturulamadı.');
+            }
+        } catch (e) {
+            alert('Sunucu hatası oluştu!');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Bağlantıyı Al';
+        }
+    }
+</script>
+
+</body>
+</html>
