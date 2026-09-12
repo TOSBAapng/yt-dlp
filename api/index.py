@@ -33,15 +33,16 @@ class handler(BaseHTTPRequestHandler):
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # YouTube format kısıtlamasını aşmak için iOS/Android istemci zorlaması
+            # YouTube format engellerini tamamen aşan istemci kombinasyonu
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android'],
-                    'skip': ['hls', 'dash']
+                    'player_client': ['tv_embedded', 'mweb'],
+                    'player_skip': ['webpage', 'configs']
                 }
             }
         }
 
+        # Çerez verisi varsa formatını düzeltip geçici dosyaya yaz
         if cookie_data and len(cookie_data.strip()) > 0:
             formatted_cookies = cookie_data.replace('\\n', '\n')
             temp_cookie = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
@@ -56,15 +57,15 @@ class handler(BaseHTTPRequestHandler):
                 
                 stream_url = None
                 
-                # Formats dizisindeki en uygun oynatılabilir URL'i bul
+                # Formats dizisindeki doğrudan oynatılabilir MP4 / WebM akışını bul
                 if 'formats' in info and info['formats']:
+                    # 1. Öncelik: Hem ses hem video içeren doğrudan oynatılabilir bağlantı
                     for f in info['formats']:
-                        # Bütünleşik video + ses içeren formatlar
                         if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
                             stream_url = f.get('url')
                             break
                     
-                    # Bulunamazsa geçerli ilk URL'i al
+                    # 2. Öncelik: Bütünleşik bulunamazsa geçerli ilk medya adresi
                     if not stream_url:
                         for f in reversed(info['formats']):
                             if f.get('url'):
