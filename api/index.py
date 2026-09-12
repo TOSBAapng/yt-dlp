@@ -29,15 +29,16 @@ class handler(BaseHTTPRequestHandler):
         cookie_data = os.environ.get('YOUTUBE_COOKIES', '')
         cookie_file_path = None
 
-        # 'format': 'all' zorlaması yt-dlp'nin hata fırlatmasını engeller
         ydl_opts = {
+            # 'format': 'all' akışların tamamen çekilmesini sağlar
             'format': 'all',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
+            # Yalnızca doğrudan video akışı döndüren mobil istemcileri zorla
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'mweb', 'android', 'ios']
+                    'player_client': ['android', 'ios']
                 }
             }
         }
@@ -54,25 +55,35 @@ class handler(BaseHTTPRequestHandler):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 
-                format_list = []
-                if 'formats' in info:
+                stream_url = None
+                
+                if 'formats' in info and info['formats']:
+                    # 1. Öncelik: Hem ses hem video içeren doğrudan oynatılabilir bağlantı
                     for f in info['formats']:
-                        format_list.append({
-                            'format_id': f.get('format_id'),
-                            'ext': f.get('ext'),
-                            'resolution': f.get('resolution'),
-                            'vcodec': f.get('vcodec'),
-                            'acodec': f.get('acodec'),
-                            'has_video': f.get('vcodec') != 'none',
-                            'has_audio': f.get('acodec') != 'none',
-                            'url': f.get('url')
-                        })
+                        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
+                            stream_url = f.get('url')
+                            break
+                    
+                    # 2. Öncelik: Sadece video içeren geçerli ilk stream URL'i
+                    if not stream_url:
+                        for f in info['formats']:
+                            if f.get('vcodec') != 'none' and f.get('url'):
+                                stream_url = f.get('url')
+                                break
+
+                    # 3. Öncelik: Herhangi bir geçerli stream URL'i
+                    if not stream_url:
+                        for f in reversed(info['formats']):
+                            if f.get('url') and not f.get('ext') == 'mhtml':
+                                stream_url = f.get('url')
+                                break
 
                 response = {
                     'status': 'success',
                     'title': info.get('title'),
-                    'total_formats_found': len(format_list),
-                    'formats': format_list
+                    'duration': info.get('duration'),
+                    'url': stream_url,
+                    'thumbnail': info.get('thumbnail')
                 }
         except Exception as e:
             response = {'status': 'error', 'message': str(e)}
@@ -80,5 +91,5 @@ class handler(BaseHTTPRequestHandler):
             if cookie_file_path and os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
 
-        self.wfile.write(json.dumps(response, indent=2).encode('utf-8'))
+        self.wfile.write(json.dumps(response).encode('utf-8'))
         return
