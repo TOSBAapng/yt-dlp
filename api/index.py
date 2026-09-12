@@ -1,6 +1,8 @@
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 import json
+import os
+import tempfile
 import yt_dlp
 
 class handler(BaseHTTPRequestHandler):
@@ -19,23 +21,29 @@ class handler(BaseHTTPRequestHandler):
         if not url:
             response = {
                 'status': 'error', 
-                'message': 'Lutfen url parametresi gonderin. Örn: /?url=https://www.youtube.com/watch?v=...'
+                'message': 'Lutfen url parametresi gonderin.'
             }
             self.wfile.write(json.dumps(response).encode('utf-8'))
             return
+
+        # Vercel Environment Variable üzerinden cookies oku
+        cookie_data = os.environ.get('YOUTUBE_COOKIES')
+        cookie_file_path = None
 
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
             'quiet': True,
             'no_warnings': True,
-            'nocheckcertificate': True,
-            # YouTube bot engelini aşmak için mobil istemci simülasyonu
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'mweb']
-                }
-            }
+            'nocheckcertificate': True
         }
+
+        # Çerez varsa geçici dosyaya yazıp yt-dlp'ye ver
+        if cookie_data:
+            temp_cookie = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
+            temp_cookie.write(cookie_data)
+            temp_cookie.close()
+            cookie_file_path = temp_cookie.name
+            ydl_opts['cookiefile'] = cookie_file_path
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -49,6 +57,9 @@ class handler(BaseHTTPRequestHandler):
                 }
         except Exception as e:
             response = {'status': 'error', 'message': str(e)}
+        finally:
+            if cookie_file_path and os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
 
         self.wfile.write(json.dumps(response).encode('utf-8'))
         return
