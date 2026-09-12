@@ -30,13 +30,14 @@ class handler(BaseHTTPRequestHandler):
         cookie_file_path = None
 
         ydl_opts = {
-            # Herhangi bir esnek format seçimi (Sert filtreleme yapmadan genel veri çekimi)
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
+            # YouTube format kısıtlamasını aşmak için iOS/Android istemci zorlaması
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'android', 'ios', 'mweb']
+                    'player_client': ['ios', 'android'],
+                    'skip': ['hls', 'dash']
                 }
             }
         }
@@ -51,25 +52,27 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # download=False ile manifest ve tüm akış formatlarını çek
                 info = ydl.extract_info(url, download=False)
                 
-                stream_url = info.get('url')
+                stream_url = None
                 
-                # Eğer ana URL gelmediyse, mevcut formatlar listesini tara
-                if not stream_url and 'formats' in info:
-                    # Öncelik 1: Hem video hem ses içeren akış (acodec ve vcodec None değil)
+                # Formats dizisindeki en uygun oynatılabilir URL'i bul
+                if 'formats' in info and info['formats']:
                     for f in info['formats']:
+                        # Bütünleşik video + ses içeren formatlar
                         if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
                             stream_url = f.get('url')
                             break
                     
-                    # Öncelik 2: Eğer bulunamazsa geçerli URL içeren son formatı al
+                    # Bulunamazsa geçerli ilk URL'i al
                     if not stream_url:
                         for f in reversed(info['formats']):
                             if f.get('url'):
                                 stream_url = f.get('url')
                                 break
+                
+                if not stream_url:
+                    stream_url = info.get('url')
 
                 response = {
                     'status': 'success',
