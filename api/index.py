@@ -29,20 +29,18 @@ class handler(BaseHTTPRequestHandler):
         cookie_data = os.environ.get('YOUTUBE_COOKIES', '')
         cookie_file_path = None
 
+        # Format zorlaması OLMADAN sadece ham extractor verisini çekiyoruz
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # YouTube format engellerini tamamen aşan istemci kombinasyonu
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'mweb'],
-                    'player_skip': ['webpage', 'configs']
+                    'player_client': ['tv_embedded', 'mweb', 'android', 'ios']
                 }
             }
         }
 
-        # Çerez verisi varsa formatını düzeltip geçici dosyaya yaz
         if cookie_data and len(cookie_data.strip()) > 0:
             formatted_cookies = cookie_data.replace('\\n', '\n')
             temp_cookie = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
@@ -55,32 +53,26 @@ class handler(BaseHTTPRequestHandler):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 
-                stream_url = None
-                
-                # Formats dizisindeki doğrudan oynatılabilir MP4 / WebM akışını bul
-                if 'formats' in info and info['formats']:
-                    # 1. Öncelik: Hem ses hem video içeren doğrudan oynatılabilir bağlantı
+                # Mevcut tüm formatların basitleştirilmiş listesini çıkar
+                format_list = []
+                if 'formats' in info:
                     for f in info['formats']:
-                        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
-                            stream_url = f.get('url')
-                            break
-                    
-                    # 2. Öncelik: Bütünleşik bulunamazsa geçerli ilk medya adresi
-                    if not stream_url:
-                        for f in reversed(info['formats']):
-                            if f.get('url'):
-                                stream_url = f.get('url')
-                                break
-                
-                if not stream_url:
-                    stream_url = info.get('url')
+                        format_list.append({
+                            'format_id': f.get('format_id'),
+                            'ext': f.get('ext'),
+                            'resolution': f.get('resolution'),
+                            'vcodec': f.get('vcodec'),
+                            'acodec': f.get('acodec'),
+                            'has_video': f.get('vcodec') != 'none',
+                            'has_audio': f.get('acodec') != 'none',
+                            'url_exists': bool(f.get('url'))
+                        })
 
                 response = {
                     'status': 'success',
                     'title': info.get('title'),
-                    'duration': info.get('duration'),
-                    'url': stream_url,
-                    'thumbnail': info.get('thumbnail')
+                    'total_formats_found': len(format_list),
+                    'formats': format_list
                 }
         except Exception as e:
             response = {'status': 'error', 'message': str(e)}
@@ -88,5 +80,5 @@ class handler(BaseHTTPRequestHandler):
             if cookie_file_path and os.path.exists(cookie_file_path):
                 os.remove(cookie_file_path)
 
-        self.wfile.write(json.dumps(response).encode('utf-8'))
+        self.wfile.write(json.dumps(response, indent=2).encode('utf-8'))
         return
