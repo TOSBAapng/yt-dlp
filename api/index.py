@@ -29,8 +29,9 @@ class handler(BaseHTTPRequestHandler):
         cookie_data = os.environ.get('YOUTUBE_COOKIES', '')
         cookie_file_path = None
 
-        # Format zorlaması OLMADAN sadece ham extractor verisini çekiyoruz
+        # 'format': 'all' zorlaması yt-dlp'nin hata fırlatmasını engeller
         ydl_opts = {
+            'format': 'all',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
@@ -53,7 +54,6 @@ class handler(BaseHTTPRequestHandler):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 
-                # Mevcut tüm formatların basitleştirilmiş listesini çıkar
                 format_list = []
                 if 'formats' in info:
                     for f in info['formats']:
@@ -65,7 +65,7 @@ class handler(BaseHTTPRequestHandler):
                             'acodec': f.get('acodec'),
                             'has_video': f.get('vcodec') != 'none',
                             'has_audio': f.get('acodec') != 'none',
-                            'url_exists': bool(f.get('url'))
+                            'url': f.get('url')
                         })
 
                 response = {
