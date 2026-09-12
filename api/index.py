@@ -5,9 +5,12 @@ app = Flask(__name__)
 
 @app.route('/', defaults={'path': ''}, methods=['GET', 'POST'])
 @app.route('/<path:path>', methods=['GET', 'POST'])
-def catch_all(path):
-    url = request.args.get('url') or (request.json and request.json.get('url'))
+def handler(path):
+    url = request.args.get('url')
     
+    if not url and request.is_json:
+        url = request.json.get('url')
+        
     if not url:
         return jsonify({'status': 'error', 'message': 'Lutfen url parametresi gonderin.'}), 400
 
@@ -15,12 +18,12 @@ def catch_all(path):
         'format': 'best[ext=mp4]/best',
         'quiet': True,
         'no_warnings': True,
+        'nocheckcertificate': True
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            
             return jsonify({
                 'status': 'success',
                 'title': info.get('title'),
@@ -31,5 +34,5 @@ def catch_all(path):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-if __name__ == '__main__':
-    app.run()
+# Vercel Serverless için uygulama nesnesi
+app = app
