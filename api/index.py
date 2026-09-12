@@ -30,8 +30,7 @@ class handler(BaseHTTPRequestHandler):
         cookie_file_path = None
 
         ydl_opts = {
-            # Herhangi bir esnek format seçimi (MP4 zorlaması olmadan en uygun direkt akışı alır)
-            'format': 'b/best/bestvideo+bestaudio',
+            # Herhangi bir esnek format seçimi (Sert filtreleme yapmadan genel veri çekimi)
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
@@ -52,22 +51,31 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # download=False ile manifest ve tüm akış formatlarını çek
                 info = ydl.extract_info(url, download=False)
                 
-                # Doğrudan oynatılabilir URL yoksa formats listesinden ilk geçerli linki seçer
-                direct_url = info.get('url')
-                if not direct_url and 'formats' in info and len(info['formats']) > 0:
-                    # Hem video hem ses içeren veya en uygun formatı bul
-                    for f in reversed(info['formats']):
-                        if f.get('url'):
-                            direct_url = f.get('url')
+                stream_url = info.get('url')
+                
+                # Eğer ana URL gelmediyse, mevcut formatlar listesini tara
+                if not stream_url and 'formats' in info:
+                    # Öncelik 1: Hem video hem ses içeren akış (acodec ve vcodec None değil)
+                    for f in info['formats']:
+                        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
+                            stream_url = f.get('url')
                             break
+                    
+                    # Öncelik 2: Eğer bulunamazsa geçerli URL içeren son formatı al
+                    if not stream_url:
+                        for f in reversed(info['formats']):
+                            if f.get('url'):
+                                stream_url = f.get('url')
+                                break
 
                 response = {
                     'status': 'success',
                     'title': info.get('title'),
                     'duration': info.get('duration'),
-                    'url': direct_url,
+                    'url': stream_url,
                     'thumbnail': info.get('thumbnail')
                 }
         except Exception as e:
