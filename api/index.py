@@ -34,11 +34,10 @@ class handler(BaseHTTPRequestHandler):
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # "Page needs to be reloaded" engelini aşan istemciler
+            # Player doğrulamasını bozmadan mobil/TV istemcilerini sırayla dener
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android_vr', 'tv_embedded'],
-                    'player_skip': ['webpage', 'configs', 'js']
+                    'player_client': ['ios', 'android', 'mweb']
                 }
             }
         }
@@ -58,36 +57,35 @@ class handler(BaseHTTPRequestHandler):
                 stream_url = None
                 formats = info.get('formats', [])
                 
-                def is_real_media(f_url, ext):
+                # Storyboard ve resim formatlarını süzme fonksiyonu
+                def is_valid_stream(f):
+                    f_url = str(f.get('url', '')).lower()
+                    ext = str(f.get('ext', '')).lower()
                     if not f_url:
                         return False
-                    f_url_str = str(f_url).lower()
-                    ext_str = str(ext).lower()
-                    if 'storyboard' in f_url_str or 'i.ytimg.com' in f_url_str:
+                    if 'storyboard' in f_url or 'i.ytimg.com' in f_url:
                         return False
-                    if ext_str in ['mhtml', 'jpg', 'png', 'webp']:
+                    if ext in ['mhtml', 'jpg', 'png', 'webp']:
                         return False
                     return True
 
-                # 1. Öncelik: Hem Ses hem Video barındıran medya akışı
+                # 1. Öncelik: Hem Ses hem Video barındıran doğrudan medya akışı
                 for f in formats:
-                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
-                        if is_real_media(f.get('url'), f.get('ext')):
+                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and is_valid_stream(f):
+                        stream_url = f.get('url')
+                        break
+
+                # 2. Öncelik: Sadece Video barındıran geçerli akış
+                if not stream_url:
+                    for f in formats:
+                        if f.get('vcodec') != 'none' and is_valid_stream(f):
                             stream_url = f.get('url')
                             break
 
-                # 2. Öncelik: Sadece Video barındıran akış
-                if not stream_url:
-                    for f in formats:
-                        if f.get('vcodec') != 'none':
-                            if is_real_media(f.get('url'), f.get('ext')):
-                                stream_url = f.get('url')
-                                break
-
-                # 3. Öncelik: Herhangi bir geçerli video/ses linki (.mp4 / .m3u8)
+                # 3. Öncelik: Resim olmayan herhangi bir geçerli medya bağlantısı
                 if not stream_url:
                     for f in reversed(formats):
-                        if is_real_media(f.get('url'), f.get('ext')):
+                        if is_valid_stream(f):
                             stream_url = f.get('url')
                             break
 
