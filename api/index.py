@@ -26,25 +26,22 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode('utf-8'))
             return
 
-        # Ortam değişkeninden cookies alma garantisi (Var ise)
         cookie_data = os.environ.get('YOUTUBE_COOKIES', '')
         cookie_file_path = None
 
         ydl_opts = {
-            'format': 'best[ext=mp4]/best',
+            # Herhangi bir esnek format seçimi (MP4 zorlaması olmadan en uygun direkt akışı alır)
+            'format': 'b/best/bestvideo+bestaudio',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # YouTube bot engelini aşan istemci önceliklendirmesi (TV HTML5 & Mobile)
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'android', 'ios', 'mweb'],
-                    'player_skip': ['webpage', 'configs']
+                    'player_client': ['tv_embedded', 'android', 'ios', 'mweb']
                 }
             }
         }
 
-        # Eğer Environment Variable'da çerez varsa alt satır düzenlemesiyle geçici dosyaya yaz
         if cookie_data and len(cookie_data.strip()) > 0:
             formatted_cookies = cookie_data.replace('\\n', '\n')
             temp_cookie = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
@@ -56,11 +53,21 @@ class handler(BaseHTTPRequestHandler):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                
+                # Doğrudan oynatılabilir URL yoksa formats listesinden ilk geçerli linki seçer
+                direct_url = info.get('url')
+                if not direct_url and 'formats' in info and len(info['formats']) > 0:
+                    # Hem video hem ses içeren veya en uygun formatı bul
+                    for f in reversed(info['formats']):
+                        if f.get('url'):
+                            direct_url = f.get('url')
+                            break
+
                 response = {
                     'status': 'success',
                     'title': info.get('title'),
                     'duration': info.get('duration'),
-                    'url': info.get('url'),
+                    'url': direct_url,
                     'thumbnail': info.get('thumbnail')
                 }
         except Exception as e:
