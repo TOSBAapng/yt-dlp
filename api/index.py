@@ -30,15 +30,14 @@ class handler(BaseHTTPRequestHandler):
         cookie_file_path = None
 
         ydl_opts = {
-            # 'format': 'all' akışların tamamen çekilmesini sağlar
-            'format': 'all',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # Yalnızca doğrudan video akışı döndüren mobil istemcileri zorla
+            # Data center engellerini bypass eden gömülü web & TV istemci kombinasyonu
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios']
+                    'player_client': ['web_embedded', 'tv_embedded', 'android_vr'],
+                    'player_skip': ['configs', 'webpage']
                 }
             }
         }
@@ -58,25 +57,28 @@ class handler(BaseHTTPRequestHandler):
                 stream_url = None
                 
                 if 'formats' in info and info['formats']:
-                    # 1. Öncelik: Hem ses hem video içeren doğrudan oynatılabilir bağlantı
+                    # 1. Ses ve video barındıran doğrudan oynatılabilir bağlantı
                     for f in info['formats']:
                         if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
                             stream_url = f.get('url')
                             break
                     
-                    # 2. Öncelik: Sadece video içeren geçerli ilk stream URL'i
+                    # 2. Yalnızca video içeren bağlantı
                     if not stream_url:
                         for f in info['formats']:
                             if f.get('vcodec') != 'none' and f.get('url'):
                                 stream_url = f.get('url')
                                 break
 
-                    # 3. Öncelik: Herhangi bir geçerli stream URL'i
+                    # 3. MHTML/Storyboard olmayan ilk geçerli medya adresi
                     if not stream_url:
                         for f in reversed(info['formats']):
-                            if f.get('url') and not f.get('ext') == 'mhtml':
+                            if f.get('url') and not str(f.get('ext')).startswith('mhtml'):
                                 stream_url = f.get('url')
                                 break
+
+                if not stream_url:
+                    stream_url = info.get('url')
 
                 response = {
                     'status': 'success',
