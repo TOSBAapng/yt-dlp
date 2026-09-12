@@ -30,14 +30,16 @@ class handler(BaseHTTPRequestHandler):
         cookie_file_path = None
 
         ydl_opts = {
+            # 'format': 'all' sayesinde yt-dlp "Requested format is not available" hatası fırlatmaz
+            'format': 'all',
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # Embed engeli olmayan TV ve Mobil Yaratıcı istemcilerini zorla
+            # Embed engeline ve PoToken kısıtlamasına takılmayan istemciler
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'android_creator', 'mweb'],
-                    'player_skip': ['webpage', 'configs']
+                    'player_client': ['ios', 'android_vr', 'mweb'],
+                    'player_skip': ['configs', 'webpage']
                 }
             }
         }
@@ -55,36 +57,36 @@ class handler(BaseHTTPRequestHandler):
                 info = ydl.extract_info(url, download=False)
                 
                 stream_url = None
+                formats = info.get('formats', [])
                 
-                if 'formats' in info and info['formats']:
-                    # 1. Öncelik: Hem ses hem video içeren doğrudan akış
-                    for f in info['formats']:
-                        if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
+                # 1. Ses ve Video barındıran doğrudan akış (MP4 / HLS)
+                for f in formats:
+                    if f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('url'):
+                        stream_url = f.get('url')
+                        break
+
+                # 2. Bulunamazsa geçerli video akışı (mhtml/storyboard hariç)
+                if not stream_url:
+                    for f in formats:
+                        if f.get('vcodec') != 'none' and f.get('url') and not str(f.get('ext')).startswith('mhtml'):
                             stream_url = f.get('url')
                             break
-                    
-                    # 2. Öncelik: Sadece video içeren geçerli akış
-                    if not stream_url:
-                        for f in info['formats']:
-                            if f.get('vcodec') != 'none' and f.get('url'):
-                                stream_url = f.get('url')
-                                break
 
-                    # 3. Öncelik: MHTML olmayan geçerli herhangi bir akış adresi
-                    if not stream_url:
-                        for f in reversed(info['formats']):
-                            if f.get('url') and not str(f.get('ext')).startswith('mhtml'):
-                                stream_url = f.get('url')
-                                break
+                # 3. Son çare: Herhangi bir geçerli medya bağlantısı
+                if not stream_url:
+                    for f in reversed(formats):
+                        if f.get('url') and not str(f.get('ext')).startswith('mhtml'):
+                            stream_url = f.get('url')
+                            break
 
                 if not stream_url:
                     stream_url = info.get('url')
 
                 response = {
-                    'status': 'success',
+                    'status': 'success' if stream_url else 'error',
                     'title': info.get('title'),
                     'duration': info.get('duration'),
-                    'url': stream_url,
+                    'url': stream_url if stream_url else None,
                     'thumbnail': info.get('thumbnail')
                 }
         except Exception as e:
