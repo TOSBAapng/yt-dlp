@@ -26,21 +26,29 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode('utf-8'))
             return
 
-        # Vercel Environment Variable üzerinden cookies oku
-        cookie_data = os.environ.get('YOUTUBE_COOKIES')
+        # Ortam değişkeninden cookies alma garantisi (Var ise)
+        cookie_data = os.environ.get('YOUTUBE_COOKIES', '')
         cookie_file_path = None
 
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
             'quiet': True,
             'no_warnings': True,
-            'nocheckcertificate': True
+            'nocheckcertificate': True,
+            # YouTube bot engelini aşan istemci önceliklendirmesi (TV HTML5 & Mobile)
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv_embedded', 'android', 'ios', 'mweb'],
+                    'player_skip': ['webpage', 'configs']
+                }
+            }
         }
 
-        # Çerez varsa geçici dosyaya yazıp yt-dlp'ye ver
-        if cookie_data:
+        # Eğer Environment Variable'da çerez varsa alt satır düzenlemesiyle geçici dosyaya yaz
+        if cookie_data and len(cookie_data.strip()) > 0:
+            formatted_cookies = cookie_data.replace('\\n', '\n')
             temp_cookie = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
-            temp_cookie.write(cookie_data)
+            temp_cookie.write(formatted_cookies)
             temp_cookie.close()
             cookie_file_path = temp_cookie.name
             ydl_opts['cookiefile'] = cookie_file_path
