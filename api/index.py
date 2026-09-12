@@ -5,14 +5,12 @@ import yt_dlp
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # URL parametrelerini ayrıştır
         parsed_path = urlparse(self.path)
         query_params = parse_qs(parsed_path.query)
         
         url_list = query_params.get('url')
         url = url_list[0] if url_list else None
 
-        # Headers
         self.send_response(200 if url else 400)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -30,7 +28,13 @@ class handler(BaseHTTPRequestHandler):
             'format': 'best[ext=mp4]/best',
             'quiet': True,
             'no_warnings': True,
-            'nocheckcertificate': True
+            'nocheckcertificate': True,
+            # YouTube bot engelini aşmak için mobil istemci simülasyonu
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'mweb']
+                }
+            }
         }
 
         try:
