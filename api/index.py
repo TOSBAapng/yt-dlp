@@ -34,11 +34,11 @@ class handler(BaseHTTPRequestHandler):
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
-            # Gerçek video akışı döndüren TV ve Creator istemcileri
+            # "Page needs to be reloaded" engelini aşan istemciler
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['tv', 'android_creator', 'mweb'],
-                    'player_skip': ['configs', 'webpage']
+                    'player_client': ['android_vr', 'tv_embedded'],
+                    'player_skip': ['webpage', 'configs', 'js']
                 }
             }
         }
@@ -58,7 +58,6 @@ class handler(BaseHTTPRequestHandler):
                 stream_url = None
                 formats = info.get('formats', [])
                 
-                # Storyboard/Resim linklerini filtreleyen yardımcı fonksiyon
                 def is_real_media(f_url, ext):
                     if not f_url:
                         return False
@@ -70,14 +69,14 @@ class handler(BaseHTTPRequestHandler):
                         return False
                     return True
 
-                # 1. Öncelik: Hem Ses hem Video barındıran gerçek medya akışı
+                # 1. Öncelik: Hem Ses hem Video barındıran medya akışı
                 for f in formats:
                     if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
                         if is_real_media(f.get('url'), f.get('ext')):
                             stream_url = f.get('url')
                             break
 
-                # 2. Öncelik: Sadece Video barındıran medya akışı
+                # 2. Öncelik: Sadece Video barındıran akış
                 if not stream_url:
                     for f in formats:
                         if f.get('vcodec') != 'none':
@@ -85,7 +84,7 @@ class handler(BaseHTTPRequestHandler):
                                 stream_url = f.get('url')
                                 break
 
-                # 3. Öncelik: Resim olmayan herhangi bir video/ses linki (.mp4 / .m3u8 vb.)
+                # 3. Öncelik: Herhangi bir geçerli video/ses linki (.mp4 / .m3u8)
                 if not stream_url:
                     for f in reversed(formats):
                         if is_real_media(f.get('url'), f.get('ext')):
